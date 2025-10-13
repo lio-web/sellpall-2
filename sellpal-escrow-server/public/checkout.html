@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SellPal Escrow Checkout</title>
+<style>
+  body { font-family: Arial; background:#f5f5dc; padding:20px; }
+  .container { max-width:500px; margin:auto; background:#fff; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.1); }
+  h2 { text-align:center; color:#008080; }
+  label { display:block; margin-top:10px; font-weight:bold; color:#006400; }
+  input { width:100%; padding:10px; margin-top:5px; border-radius:5px; border:1px solid #ccc; }
+  button { margin-top:20px; width:100%; padding:12px; background:#008000; color:white; font-size:16px; border:none; border-radius:8px; cursor:pointer; }
+  button:hover { background:#006400; }
+  .message { margin-top:20px; padding:10px; border-radius:5px; background:#e0f7f7; color:#008080; display:none; }
+  #releaseFunds { background:#20b2aa; }
+  #releaseFunds:hover { background:#008080; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h2>SellPal Escrow Checkout</h2>
+  <form id="checkoutForm">
+    <label>Buyer Name</label><input type="text" id="name" required>
+    <label>Buyer Email</label><input type="email" id="email" required>
+    <label>Seller Email</label><input type="email" id="sellerEmail" required>
+    <label>Item Description</label><input type="text" id="item" required>
+    <label>Amount (KES)</label><input type="number" id="amount" required>
+    <button type="submit">Pay with SellPal Escrow</button>
+  </form>
+
+  <div class="message" id="message"></div>
+  <button id="releaseFunds" style="display:none;">Release Funds to Seller</button>
+</div>
+
+<script>
+const form = document.getElementById("checkoutForm");
+const messageDiv = document.getElementById("message");
+const releaseBtn = document.getElementById("releaseFunds");
+
+let currentOrderID = null;
+
+// Use absolute URLs pointing to your Node.js backend
+const BASE_URL = "http://localhost:3000";
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const formData = {
+    name: form.name.value,
+    email: form.email.value,
+    sellerEmail: form.sellerEmail.value,
+    item: form.item.value,
+    amount: form.amount.value
+  };
+  console.log("📤 Sending form data:", formData);
+
+  try {
+    const response = await fetch(`${BASE_URL}/api/checkout`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(formData)
+    });
+
+    console.log("📥 Fetch response status:", response.status);
+    const data = await response.json();
+    console.log("📄 Response JSON:", data);
+
+    if(data.success){
+      currentOrderID = data.orderID;
+      messageDiv.style.display="block";
+      messageDiv.style.background="#e0f7f7";
+      messageDiv.style.color="#008080";
+      messageDiv.innerHTML=`✅ Deposit successful!<br>Order ID: <strong>${data.orderID}</strong><br>Once the item is delivered, click "Release Funds" below.`;
+      form.reset();
+      releaseBtn.style.display = "block";
+    } else {
+      messageDiv.style.display="block";
+      messageDiv.style.background="#ffe0e0";
+      messageDiv.style.color="#800000";
+      messageDiv.textContent=`❌ Error: ${data.error}`;
+    }
+  } catch(err){
+    console.error("❌ Fetch error:", err);
+    messageDiv.style.display="block";
+    messageDiv.style.background="#ffe0e0";
+    messageDiv.style.color="#800000";
+    messageDiv.textContent=`❌ Network Error: ${err.message}`;
+  }
+});
+
+// Release funds button click
+releaseBtn.addEventListener("click", async () => {
+  if(!currentOrderID) return;
+  try {
+    const response = await fetch(`${BASE_URL}/api/release/${currentOrderID}`, {
+      method: "POST"
+    });
+    const data = await response.json();
+    if(data.success){
+      messageDiv.style.display="block";
+      messageDiv.style.background="#d4edda";
+      messageDiv.style.color="#155724";
+      messageDiv.textContent=`✅ Funds released to seller for Order ID: ${currentOrderID}`;
+      releaseBtn.style.display="none";
+      currentOrderID = null;
+    } else {
+      messageDiv.style.display="block";
+      messageDiv.style.background="#ffe0e0";
+      messageDiv.style.color="#800000";
+      messageDiv.textContent=`❌ Error: ${data.error}`;
+    }
+  } catch(err){
+    console.error("❌ Release error:", err);
+    messageDiv.style.display="block";
+    messageDiv.style.background="#ffe0e0";
+    messageDiv.style.color="#800000";
+    messageDiv.textContent=`❌ Network Error: ${err.message}`;
+  }
+});
+</script>
+</body>
+</html>
